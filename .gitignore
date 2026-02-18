@@ -46,3 +46,5 @@ temp/
 *.mkv
 *.txt
 
+# Но НЕ игнорируем requirements.txt - он нужен для проекта
+!requirements.txt
