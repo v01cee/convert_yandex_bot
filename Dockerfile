@@ -9,8 +9,10 @@ RUN apt-get update && apt-get install -y \
 # Создаем рабочую директорию
 WORKDIR /app
 
-# Обновляем pip и устанавливаем setuptools с pkg_resources
-RUN pip install --upgrade pip setuptools wheel && \
+# Обновляем pip и устанавливаем setuptools
+# Устанавливаем setuptools < 66 для поддержки pkg_resources
+RUN pip install --upgrade pip wheel && \
+    pip install "setuptools<66" && \
     pip install setuptools-scm
 
 # Копируем файл зависимостей
