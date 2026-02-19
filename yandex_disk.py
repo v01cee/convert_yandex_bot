@@ -167,18 +167,48 @@ class YandexDisk:
                 print(f"Исключение при получении ссылки на скачивание: {e}")
                 return None
     
-    async def get_public_download_link(self, public_key: str) -> Optional[str]:
+    async def get_public_resource_info(self, public_key: str) -> Optional[Dict]:
         """
-        Получает ссылку для скачивания из публичной папки
+        Получает информацию о публичном ресурсе (файле или папке)
+        
+        Args:
+            public_key: Ключ публичного ресурса (из ссылки /i/)
+        
+        Returns:
+            Словарь с информацией о ресурсе или None при ошибке
+        """
+        url = f"{self.API_BASE_URL}/public/resources"
+        params = {"public_key": public_key}
+        
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(url, headers=self.headers, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data
+                    else:
+                        error_text = await response.text()
+                        print(f"Ошибка получения информации о публичном ресурсе: {response.status} - {error_text}")
+                        return None
+            except Exception as e:
+                print(f"Исключение при получении информации о публичном ресурсе: {e}")
+                return None
+    
+    async def get_public_download_link(self, public_key: str, path: str = None) -> Optional[str]:
+        """
+        Получает ссылку для скачивания из публичной папки или файла
         
         Args:
             public_key: Ключ публичной папки
+            path: Путь к файлу внутри публичной папки (если это папка)
         
         Returns:
             URL для скачивания или None при ошибке
         """
         url = f"{self.API_BASE_URL}/public/resources/download"
         params = {"public_key": public_key}
+        if path:
+            params["path"] = path
         
         async with aiohttp.ClientSession() as session:
             try:
