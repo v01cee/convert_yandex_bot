@@ -44,28 +44,39 @@ async def handle_disk_link(message: Message):
     Извлекает видео файлы из указанной папки
     Доступно только для администраторов
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     user_id = message.from_user.id
     text = message.text or ""
     
+    logger.info(f"Получено сообщение от {user_id}: {text[:100]}")
+    
     # Проверяем, является ли пользователь администратором
     if not is_admin(user_id):
+        logger.info(f"Пользователь {user_id} не является администратором")
         return  # Игнорируем сообщения от не-админов
     
-    # Проверяем, является ли сообщение ссылкой на Яндекс.Диск
-    # Извлекаем чистый текст без "Вы написали:" если есть
-    clean_text = text
-    if "Вы написали:" in text:
-        # Убираем префикс "Вы написали:" и все что до первой ссылки
-        import re
-        url_match = re.search(r'https?://[^\s]+', text)
-        if url_match:
-            clean_text = url_match.group(0)
+    # Извлекаем все ссылки из текста (на случай если есть префикс "Вы написали:")
+    import re
+    url_matches = re.findall(r'https?://[^\s]+', text)
     
+    if not url_matches:
+        logger.info("Ссылки не найдены в сообщении")
+        return
+    
+    # Берем первую найденную ссылку
+    clean_text = url_matches[0]
+    logger.info(f"Извлечена ссылка: {clean_text}")
+    
+    # Проверяем, является ли ссылка на Яндекс.Диск
     if not is_yandex_disk_url(clean_text):
+        logger.info(f"Ссылка не является ссылкой на Яндекс.Диск: {clean_text}")
         return  # Не обрабатываем, если это не ссылка на Яндекс.Диск
     
     # Используем чистый текст для обработки
     text = clean_text
+    logger.info(f"Начинаю обработку ссылки: {text}")
     
     # Используем токен админа из конфига
     disk = YandexDisk(YANDEX_DISK_TOKEN)
