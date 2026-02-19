@@ -46,6 +46,8 @@ temp/
 *.mov
 *.mkv
 *.txt
+# Но НЕ игнорируем requirements.txt - он нужен для проекта
+!requirements.txt
 
 # Git
 .git/
