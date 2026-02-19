@@ -1,6 +1,6 @@
 aiogram==3.13.1
 aiohttp==3.10.11
-openai-whisper==20231117
+openai-whisper
 ffmpeg-python==0.2.0
 python-dotenv==1.0.1
 
