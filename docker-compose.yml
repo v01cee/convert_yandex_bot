@@ -6,10 +6,12 @@ services:
     container_name: yandex_disk_bot
     restart: unless-stopped
     volumes:
-      # Монтируем config.py для удобного редактирования
-      - ./config.py:/app/config.py:ro
+      # Монтируем .env файл с токенами
+      - ./.env:/app/.env:ro
       # Монтируем temp для сохранения временных файлов (опционально)
       - ./temp:/app/temp
+    env_file:
+      - .env
     environment:
       # Можно переопределить через переменные окружения
       - PYTHONUNBUFFERED=1
