@@ -50,11 +50,11 @@ async def handle_disk_link(message: Message):
     user_id = message.from_user.id
     text = message.text or ""
     
+    logger.info(f"Получено сообщение от {user_id}: {text[:100]}")
+    
     # Пропускаем команды - их обрабатывают другие обработчики
     if text.startswith('/'):
         return
-    
-    logger.info(f"Получено сообщение от {user_id}: {text[:100]}")
     
     # Проверяем, является ли пользователь администратором
     if not is_admin(user_id):
@@ -66,7 +66,7 @@ async def handle_disk_link(message: Message):
     url_matches = re.findall(r'https?://[^\s\)]+', text)
     
     if not url_matches:
-        logger.info("Ссылки не найдены в сообщении")
+        logger.info("Ссылки не найдены в сообщении - игнорируем")
         return  # Молча игнорируем, если нет ссылок
     
     # Берем первую найденную ссылку
@@ -75,7 +75,7 @@ async def handle_disk_link(message: Message):
     
     # Проверяем, является ли ссылка на Яндекс.Диск
     if not is_yandex_disk_url(clean_text):
-        logger.info(f"Ссылка не является ссылкой на Яндекс.Диск: {clean_text}")
+        logger.info(f"Ссылка не является ссылкой на Яндекс.Диск: {clean_text} - игнорируем")
         return  # Молча игнорируем, если это не ссылка на Яндекс.Диск
     
     # Используем чистый текст для обработки
