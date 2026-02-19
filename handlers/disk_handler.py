@@ -37,7 +37,7 @@ def is_yandex_disk_url(text: str) -> bool:
     return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
 
 
-@router.message()
+@router.message(lambda m: not m.text or not m.text.startswith('/'))
 async def handle_disk_link(message: Message):
     """
     Обработчик ссылок на Яндекс.Диск
