@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y \
 # Создаем рабочую директорию
 WORKDIR /app
 
+# Обновляем pip и устанавливаем setuptools
+RUN pip install --upgrade pip setuptools wheel
+
 # Копируем файл зависимостей
 COPY requirements.txt .
 
