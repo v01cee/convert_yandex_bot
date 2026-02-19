@@ -47,3 +47,4 @@ echo "Готово! Теперь можно клонировать:"
 echo "git clone git@github-deploy:v01cee/convert_yandex_bot.git"
 echo "=========================================="
 
+

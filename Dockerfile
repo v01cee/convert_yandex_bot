@@ -28,3 +28,4 @@ ENV PYTHONDONTWRITEBYTECODE=1
 # Команда запуска
 CMD ["python", "main.py"]
 
+
