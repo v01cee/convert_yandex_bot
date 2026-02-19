@@ -31,21 +31,6 @@ async def cmd_help(message: Message):
     )
 
 
-@router.message()
-async def echo_handler(message: Message):
-    """
-    Обработчик всех остальных сообщений (эхо)
-    Не обрабатывает ссылки на Яндекс.Диск - они обрабатываются в disk_handler
-    """
-    import re
-    text = message.text or ""
-    # Проверяем, не является ли это ссылкой на Яндекс.Диск
-    is_disk_link = any(re.search(pattern, text, re.IGNORECASE) for pattern in [
-        r'yandex\.ru/disk',
-        r'yandex\.ru/d/',
-        r'yandex\.ru/client/disk',
-    ])
-    
-    if not is_disk_link:
-        await message.answer(f"Вы написали: {message.text}")
+# Убрали echo_handler - он мешал обработке ссылок
+# Теперь все сообщения обрабатываются в disk_handler
 

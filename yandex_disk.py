@@ -40,6 +40,7 @@ class YandexDisk:
         patterns = [
             r'yandex\.ru/disk/([^/?]+)',  # https://disk.yandex.ru/disk/folder_name
             r'yandex\.ru/d/([^/?]+)',     # https://disk.yandex.ru/d/folder_id
+            r'yandex\.ru/i/([^/?]+)',     # https://disk.yandex.ru/i/public_key (публичная ссылка)
             r'yandex\.ru/client/disk\?.*path=([^&]+)',  # https://disk.yandex.ru/client/disk?path=...
         ]
         

@@ -25,8 +25,10 @@ def is_admin(user_id: int) -> bool:
 def is_yandex_disk_url(text: str) -> bool:
     """Проверяет, является ли текст ссылкой на Яндекс.Диск"""
     patterns = [
+        r'disk\.yandex\.ru',
         r'yandex\.ru/disk',
         r'yandex\.ru/d/',
+        r'yandex\.ru/i/',
         r'yandex\.ru/client/disk',
     ]
     return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
@@ -54,21 +56,34 @@ async def handle_disk_link(message: Message):
     disk = YandexDisk(YANDEX_DISK_TOKEN)
     
     # Парсим ссылку
-    folder_path = disk.parse_disk_url(text)
+    parsed_path = disk.parse_disk_url(text)
     
-    if not folder_path:
+    if not parsed_path:
         await message.answer(
             "❌ Не удалось распознать ссылку на Яндекс.Диск.\n\n"
-            "Пожалуйста, отправьте корректную ссылку на папку."
+            "Пожалуйста, отправьте корректную ссылку на папку или файл."
         )
         return
     
     # Отправляем сообщение о начале обработки
-    status_msg = await message.answer("🔍 Ищу видео файлы в папке...")
+    status_msg = await message.answer("🔍 Ищу видео файлы...")
     
     try:
+        # Проверяем, является ли это публичной ссылкой (формат /i/)
+        is_public_link = '/i/' in text or 'yandex.ru/i/' in text
+        
+        if is_public_link:
+            # Это публичная ссылка на файл - нужно получить информацию о файле через публичный API
+            # Пока обрабатываем как обычную ссылку, но нужно будет добавить поддержку публичных ссылок
+            await status_msg.edit_text(
+                "⚠️ Публичные ссылки (формат /i/) пока не поддерживаются.\n\n"
+                "Пожалуйста, используйте ссылку на папку или файл в вашем Яндекс.Диске.",
+                parse_mode="HTML"
+            )
+            return
+        
         # Получаем список видео файлов
-        videos = await disk.get_video_files_from_folder(folder_path, recursive=True)
+        videos = await disk.get_video_files_from_folder(parsed_path, recursive=True)
         
         if not videos:
             await status_msg.edit_text(
