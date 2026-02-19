@@ -52,8 +52,20 @@ async def handle_disk_link(message: Message):
         return  # Игнорируем сообщения от не-админов
     
     # Проверяем, является ли сообщение ссылкой на Яндекс.Диск
-    if not is_yandex_disk_url(text):
+    # Извлекаем чистый текст без "Вы написали:" если есть
+    clean_text = text
+    if "Вы написали:" in text:
+        # Убираем префикс "Вы написали:" и все что до первой ссылки
+        import re
+        url_match = re.search(r'https?://[^\s]+', text)
+        if url_match:
+            clean_text = url_match.group(0)
+    
+    if not is_yandex_disk_url(clean_text):
         return  # Не обрабатываем, если это не ссылка на Яндекс.Диск
+    
+    # Используем чистый текст для обработки
+    text = clean_text
     
     # Используем токен админа из конфига
     disk = YandexDisk(YANDEX_DISK_TOKEN)
