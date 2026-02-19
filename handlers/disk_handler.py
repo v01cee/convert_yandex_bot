@@ -57,13 +57,13 @@ async def handle_disk_link(message: Message):
         logger.info(f"Пользователь {user_id} не является администратором")
         return  # Игнорируем сообщения от не-админов
     
-    # Извлекаем все ссылки из текста (на случай если есть префикс "Вы написали:")
+    # Извлекаем все ссылки из текста (на случай если есть префикс "Вы написали:" или другие префиксы)
     import re
-    url_matches = re.findall(r'https?://[^\s]+', text)
+    url_matches = re.findall(r'https?://[^\s\)]+', text)
     
     if not url_matches:
         logger.info("Ссылки не найдены в сообщении")
-        return
+        return  # Молча игнорируем, если нет ссылок
     
     # Берем первую найденную ссылку
     clean_text = url_matches[0]
@@ -72,7 +72,7 @@ async def handle_disk_link(message: Message):
     # Проверяем, является ли ссылка на Яндекс.Диск
     if not is_yandex_disk_url(clean_text):
         logger.info(f"Ссылка не является ссылкой на Яндекс.Диск: {clean_text}")
-        return  # Не обрабатываем, если это не ссылка на Яндекс.Диск
+        return  # Молча игнорируем, если это не ссылка на Яндекс.Диск
     
     # Используем чистый текст для обработки
     text = clean_text
