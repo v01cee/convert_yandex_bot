@@ -141,8 +141,8 @@ async def handle_disk_link(message: Message):
         
         if not videos:
             await status_msg.edit_text(
-                f"❌ В указанной папке не найдено видео файлов.\n\n"
-                f"Путь: <code>{folder_path}</code>",
+                f"❌ Не найдено видео файлов.\n\n"
+                f"Проверьте, что ссылка указывает на видео файл или папку с видео.",
                 parse_mode="HTML"
             )
             return
@@ -161,7 +161,6 @@ async def handle_disk_link(message: Message):
         
         result_text = (
             f"✅ Найдено видео файлов: {len(videos)}\n\n"
-            f"Путь: <code>{folder_path}</code>\n\n"
         )
         
         if len(videos) > 20:
@@ -203,7 +202,27 @@ async def handle_disk_link(message: Message):
                 video_ext = Path(video_name).suffix or ".mp4"
                 video_local_path = video_local_path.with_suffix(video_ext)
                 
-                success = await disk.download_file(file_path, str(video_local_path))
+                # Проверяем, это публичная ссылка или обычная
+                if "public_key" in video:
+                    # Публичная ссылка - используем другой метод
+                    download_link = await disk.get_public_download_link(video["public_key"])
+                    if download_link:
+                        # Скачиваем напрямую по ссылке
+                        import aiohttp
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(download_link) as response:
+                                if response.status == 200:
+                                    with open(video_local_path, 'wb') as f:
+                                        async for chunk in response.content.iter_chunked(8192):
+                                            f.write(chunk)
+                                    success = True
+                                else:
+                                    success = False
+                    else:
+                        success = False
+                else:
+                    # Обычная ссылка
+                    success = await disk.download_file(file_path, str(video_local_path))
                 
                 if not success:
                     failed_count += 1
