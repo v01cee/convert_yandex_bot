@@ -24,11 +24,14 @@ def is_admin(user_id: int) -> bool:
 
 def is_yandex_disk_url(text: str) -> bool:
     """Проверяет, является ли текст ссылкой на Яндекс.Диск"""
+    if not text:
+        return False
     patterns = [
         r'disk\.yandex\.ru',
         r'yandex\.ru/disk',
         r'yandex\.ru/d/',
         r'yandex\.ru/i/',
+        r'disk\.yandex\.ru/i/',
         r'yandex\.ru/client/disk',
     ]
     return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
