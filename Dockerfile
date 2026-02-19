@@ -20,8 +20,11 @@ COPY requirements.txt .
 
 # Устанавливаем Python зависимости
 # Сначала устанавливаем CPU-only версию torch (без CUDA, намного меньше)
+# Очищаем pip кеш после установки для экономии места
 RUN pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu && \
-    pip install -r requirements.txt
+    pip install -r requirements.txt && \
+    pip cache purge && \
+    rm -rf /root/.cache/pip
 
 # Копируем весь код приложения
 COPY . .
