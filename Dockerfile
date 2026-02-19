@@ -19,7 +19,9 @@ RUN pip install --upgrade pip wheel && \
 COPY requirements.txt .
 
 # Устанавливаем Python зависимости
-RUN pip install --no-cache-dir -r requirements.txt
+# Сначала устанавливаем CPU-only версию torch (без CUDA, намного меньше)
+RUN pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu && \
+    pip install -r requirements.txt
 
 # Копируем весь код приложения
 COPY . .
