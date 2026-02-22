@@ -115,7 +115,7 @@ class YandexDisk:
                 print(f"Исключение при получении ссылки на скачивание: {e}")
                 return None
 
-    async def download_file(self, file_path: str, save_path: str) -> bool:
+    async def download_file(self, file_path: str, save_path: str, on_progress=None) -> bool:
         """Скачивает приватный файл с Яндекс.Диска."""
         download_link = await self.get_download_link(file_path)
         if not download_link:
@@ -128,9 +128,14 @@ class YandexDisk:
                     if response.status == 200:
                         from pathlib import Path
                         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+                        total = int(response.headers.get('Content-Length', 0))
+                        downloaded = 0
                         with open(save_path, 'wb') as f:
                             async for chunk in response.content.iter_chunked(65536):
                                 f.write(chunk)
+                                downloaded += len(chunk)
+                                if on_progress and total:
+                                    await on_progress(downloaded, total)
                         return True
                     else:
                         error_text = await response.text()
@@ -240,7 +245,7 @@ class YandexDisk:
                 print(f"Исключение при получении публичной ссылки: {e}")
                 return None
 
-    async def download_public_file(self, public_key: str, save_path: str, inner_path: Optional[str] = None) -> bool:
+    async def download_public_file(self, public_key: str, save_path: str, inner_path: Optional[str] = None, on_progress=None) -> bool:
         """Скачивает публичный файл по public_key (и опциональному inner_path внутри папки)."""
         download_link = await self.get_public_download_link(public_key, inner_path)
         if not download_link:
@@ -253,9 +258,14 @@ class YandexDisk:
                     if response.status == 200:
                         from pathlib import Path
                         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+                        total = int(response.headers.get('Content-Length', 0))
+                        downloaded = 0
                         with open(save_path, 'wb') as f:
                             async for chunk in response.content.iter_chunked(65536):
                                 f.write(chunk)
+                                downloaded += len(chunk)
+                                if on_progress and total:
+                                    await on_progress(downloaded, total)
                         return True
                     else:
                         error_text = await response.text()

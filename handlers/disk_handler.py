@@ -2,8 +2,12 @@ import logging
 import re
 import uuid
 import asyncio
+import time
 from pathlib import Path
 from typing import List, Dict, Optional
+from concurrent.futures import ThreadPoolExecutor
+
+_executor = ThreadPoolExecutor(max_workers=2)
 
 from aiogram import Router
 from aiogram.types import Message, FSInputFile
@@ -44,11 +48,16 @@ def _is_yandex_disk_url(text: str) -> bool:
     return any(re.search(p, text, re.IGNORECASE) for p in patterns)
 
 
-def _progress_bar(current: int, total: int, width: int = 10) -> str:
-    filled = int(width * current / total) if total else 0
-    bar = '█' * filled + '░' * (width - filled)
-    pct = int(100 * current / total) if total else 0
-    return f"[{bar}] {pct}%"
+def _bar(pct: int, width: int = 12) -> str:
+    """Рисует прогресс-бар для pct в диапазоне 0-100."""
+    pct = max(0, min(100, pct))
+    filled = round(width * pct / 100)
+    return '█' * filled + '░' * (width - filled)
+
+
+def _progress_text(video_name: str, stage: str, pct: int, file_idx: int, total: int) -> str:
+    file_line = f"Файл {file_idx}/{total}\n" if total > 1 else ""
+    return f"⏳ {file_line}[{_bar(pct)}] {pct}%\n\n📄 {video_name}\n➤ {stage}"
 
 
 def _format_size(size_bytes: int) -> str:
@@ -61,8 +70,7 @@ def _format_size(size_bytes: int) -> str:
 
 def _file_list_text(videos: List[Dict]) -> str:
     lines = []
-    shown = videos[:20]
-    for i, v in enumerate(shown, 1):
+    for i, v in enumerate(videos[:20], 1):
         name = v.get("name", "?")
         size = v.get("size", 0)
         lines.append(f"{i}. {name} ({_format_size(size)})")
@@ -72,30 +80,53 @@ def _file_list_text(videos: List[Dict]) -> str:
     return text
 
 
-def _status_text(file_idx: int, total_files: int, step: int, video_name: str, stage: str) -> str:
-    # step: 1=скачать, 2=конвертировать, 3=транскрибировать, 4=отправить
-    total_steps = total_files * 3
-    current_step = (file_idx - 1) * 3 + min(step, 3)
-    bar = _progress_bar(current_step, total_steps)
-    return (
-        f"⏳ Файл {file_idx}/{total_files}\n"
-        f"{bar}\n\n"
-        f"📄 {video_name}\n"
-        f"➤ {stage}"
-    )
+def _step_range(file_idx: int, total_files: int, step: int):
+    """Возвращает (start_pct, end_pct) для шага внутри файла.
+    step: 1=скачать (0→33%), 2=конвертировать (33→66%), 3=транскрибировать (66→100%)
+    Для N файлов диапазон каждого файла масштабируется пропорционально.
+    """
+    f_start = (file_idx - 1) * 100 // total_files
+    f_end = file_idx * 100 // total_files
+    span = f_end - f_start
+    third = span // 3
+    if step == 1:
+        return f_start, f_start + third
+    elif step == 2:
+        return f_start + third, f_start + 2 * third
+    else:
+        return f_start + 2 * third, f_end
+
+
+async def _try_edit(msg, text: str):
+    """Редактирует сообщение, игнорируя ошибку 'not modified'."""
+    try:
+        await msg.edit_text(text)
+    except Exception:
+        pass
+
+
+async def _simulate_progress(msg, video_name, stage, start, end, stop_evt, file_idx, total):
+    """Плавно ползёт от start до end-5 пока stop_evt не выставлен."""
+    cur = start
+    while not stop_evt.is_set() and cur < end - 5:
+        await asyncio.sleep(1.5)
+        if stop_evt.is_set():
+            break
+        cur = min(cur + 5, end - 5)
+        await _try_edit(msg, _progress_text(video_name, stage, cur, file_idx, total))
 
 
 # ── Загрузка одного файла ─────────────────────────────────────────────────────
 
-async def _download_video(video: Dict, save_path: Path) -> bool:
+async def _download_video(video: Dict, save_path: Path, on_progress=None) -> bool:
     """Скачивает видео — приватное или публичное."""
     if "public_key" in video:
         inner_path = video.get("inner_path")
         return await _disk.download_public_file(
-            video["public_key"], str(save_path), inner_path
+            video["public_key"], str(save_path), inner_path, on_progress=on_progress
         )
     else:
-        return await _disk.download_file(video.get("path", ""), str(save_path))
+        return await _disk.download_file(video.get("path", ""), str(save_path), on_progress=on_progress)
 
 
 # ── Основной обработчик ───────────────────────────────────────────────────────
@@ -152,6 +183,7 @@ async def handle_disk_link(message: Message):
     processed = 0
     failed = 0
     total = len(videos)
+    loop = asyncio.get_event_loop()
 
     for i, video in enumerate(videos, 1):
         video_name = video.get("name", "video")
@@ -163,31 +195,62 @@ async def handle_disk_link(message: Message):
         text_path = TEMP_DIR / f"{uid}.txt"
 
         try:
-            # Скачивание — шаг 1
-            await progress_msg.edit_text(_status_text(i, total, 1, video_name, "📥 Скачиваю…"))
-            ok = await _download_video(video, video_path)
+            # ── Шаг 1: Скачивание (реальный прогресс по байтам) ──────────────
+            dl_start, dl_end = _step_range(i, total, 1)
+            await _try_edit(progress_msg, _progress_text(video_name, "📥 Скачиваю…", dl_start, i, total))
+
+            last_pct: list[int] = [dl_start]
+            last_edit: list[float] = [0.0]
+
+            async def on_download(downloaded: int, total_bytes: int):
+                pct = dl_start + int((dl_end - dl_start) * downloaded / total_bytes)
+                rounded = (pct // 5) * 5
+                now = time.time()
+                if rounded != last_pct[0] and now - last_edit[0] >= 1.0:
+                    last_pct[0] = rounded
+                    last_edit[0] = now
+                    await _try_edit(progress_msg, _progress_text(video_name, "📥 Скачиваю…", rounded, i, total))
+
+            ok = await _download_video(video, video_path, on_progress=on_download)
             if not ok:
                 failed += 1
                 await message.answer(f"❌ Не удалось скачать: {video_name}")
                 continue
+            await _try_edit(progress_msg, _progress_text(video_name, "📥 Скачиваю…", dl_end, i, total))
 
-            # Конвертация — шаг 2
-            await progress_msg.edit_text(_status_text(i, total, 2, video_name, "🎵 Конвертирую в аудио…"))
-            audio_path = _converter.video_to_audio(str(video_path))
+            # ── Шаг 2: Конвертация (симуляция прогресса) ─────────────────────
+            cv_start, cv_end = _step_range(i, total, 2)
+            stop_cv = asyncio.Event()
+            sim_cv = asyncio.create_task(
+                _simulate_progress(progress_msg, video_name, "🎵 Конвертирую в аудио…", cv_start, cv_end, stop_cv, i, total)
+            )
+            audio_path = await loop.run_in_executor(_executor, _converter.video_to_audio, str(video_path))
+            stop_cv.set()
+            await sim_cv
             if not audio_path:
                 failed += 1
                 await message.answer(f"❌ Не удалось конвертировать: {video_name}")
                 continue
+            await _try_edit(progress_msg, _progress_text(video_name, "🎵 Конвертирую в аудио…", cv_end, i, total))
 
-            # Транскрибация — шаг 3
-            await progress_msg.edit_text(_status_text(i, total, 3, video_name, "📝 Транскрибирую…"))
-            transcript = _transcription.transcribe(audio_path, language="ru")
+            # ── Шаг 3: Транскрибация (симуляция прогресса) ───────────────────
+            tr_start, tr_end = _step_range(i, total, 3)
+            stop_tr = asyncio.Event()
+            sim_tr = asyncio.create_task(
+                _simulate_progress(progress_msg, video_name, "📝 Транскрибирую…", tr_start, tr_end, stop_tr, i, total)
+            )
+            transcript = await loop.run_in_executor(
+                _executor, lambda: _transcription.transcribe(audio_path, language="ru")
+            )
+            stop_tr.set()
+            await sim_tr
             if not transcript:
                 failed += 1
                 await message.answer(f"❌ Не удалось транскрибировать: {video_name}")
                 continue
+            await _try_edit(progress_msg, _progress_text(video_name, "📝 Транскрибирую…", tr_end, i, total))
 
-            # Сохраняем и отправляем
+            # ── Отправляем результат ──────────────────────────────────────────
             text_path.write_text(transcript, encoding="utf-8")
             stem = Path(video_name).stem
             doc = FSInputFile(str(text_path), filename=f"{stem}.txt")
