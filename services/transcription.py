@@ -1,9 +1,23 @@
 """
 Модуль для транскрибации аудио через Whisper
 """
+import re
 import whisper
 from pathlib import Path
 from typing import Optional
+
+
+def _add_paragraphs(text: str, sentences_per_paragraph: int = 2) -> str:
+    """Разбивает текст на абзацы: каждые N предложений — перенос строки."""
+    # Разбиваем по концу предложения (. ! ?)
+    parts = re.split(r'(?<=[.!?])\s+', text.strip())
+    lines = []
+    for i, sentence in enumerate(parts):
+        lines.append(sentence)
+        # После каждых N предложений добавляем пустую строку (абзац)
+        if (i + 1) % sentences_per_paragraph == 0 and i + 1 < len(parts):
+            lines.append("")
+    return "\n".join(lines)
 
 
 class TranscriptionService:
@@ -54,7 +68,7 @@ class TranscriptionService:
             if not text:
                 print("Транскрибация вернула пустой текст")
                 return None
-            return text
+            return _add_paragraphs(text)
         except Exception as e:
             print(f"Ошибка при транскрибации: {e}")
             return None
