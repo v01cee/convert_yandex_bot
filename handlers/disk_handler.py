@@ -23,7 +23,7 @@ router = Router()
 # Инициализация сервисов (один раз при старте)
 _disk = YandexDisk(YANDEX_DISK_TOKEN)
 _converter = VideoConverter(temp_dir="temp")
-_transcription = TranscriptionService(model_size="base")
+_transcription = TranscriptionService(model_size="small")
 
 TEMP_DIR = Path("temp")
 
