@@ -72,10 +72,13 @@ def _file_list_text(videos: List[Dict]) -> str:
     return text
 
 
-def _status_text(current: int, total: int, video_name: str, stage: str) -> str:
-    bar = _progress_bar(current, total)
+def _status_text(file_idx: int, total_files: int, step: int, video_name: str, stage: str) -> str:
+    # step: 1=скачать, 2=конвертировать, 3=транскрибировать, 4=отправить
+    total_steps = total_files * 3
+    current_step = (file_idx - 1) * 3 + min(step, 3)
+    bar = _progress_bar(current_step, total_steps)
     return (
-        f"⏳ Обрабатываю файлы: {current}/{total}\n"
+        f"⏳ Файл {file_idx}/{total_files}\n"
         f"{bar}\n\n"
         f"📄 {video_name}\n"
         f"➤ {stage}"
@@ -140,12 +143,15 @@ async def handle_disk_link(message: Message):
         await status_msg.edit_text("❌ Видеофайлы не найдены.\nПроверьте ссылку.")
         return
 
-    # Показываем список файлов одним сообщением, статус — другим
-    await message.answer(_file_list_text(videos))
-    await status_msg.edit_text(f"🔄 Начинаю обработку {len(videos)} файл(ов)…")
+    # 1. Редактируем первое сообщение → список найденных файлов
+    await status_msg.edit_text(_file_list_text(videos))
+
+    # 2. Новое сообщение под списком → прогресс обработки
+    progress_msg = await message.answer("🔄 Начинаю обработку…")
 
     processed = 0
     failed = 0
+    total = len(videos)
 
     for i, video in enumerate(videos, 1):
         video_name = video.get("name", "video")
@@ -157,24 +163,24 @@ async def handle_disk_link(message: Message):
         text_path = TEMP_DIR / f"{uid}.txt"
 
         try:
-            # Скачивание
-            await status_msg.edit_text(_status_text(i, len(videos), video_name, "📥 Скачиваю…"))
+            # Скачивание — шаг 1
+            await progress_msg.edit_text(_status_text(i, total, 1, video_name, "📥 Скачиваю…"))
             ok = await _download_video(video, video_path)
             if not ok:
                 failed += 1
                 await message.answer(f"❌ Не удалось скачать: {video_name}")
                 continue
 
-            # Конвертация
-            await status_msg.edit_text(_status_text(i, len(videos), video_name, "🎵 Конвертирую в аудио…"))
+            # Конвертация — шаг 2
+            await progress_msg.edit_text(_status_text(i, total, 2, video_name, "🎵 Конвертирую в аудио…"))
             audio_path = _converter.video_to_audio(str(video_path))
             if not audio_path:
                 failed += 1
                 await message.answer(f"❌ Не удалось конвертировать: {video_name}")
                 continue
 
-            # Транскрибация
-            await status_msg.edit_text(_status_text(i, len(videos), video_name, "📝 Транскрибирую…"))
+            # Транскрибация — шаг 3
+            await progress_msg.edit_text(_status_text(i, total, 3, video_name, "📝 Транскрибирую…"))
             transcript = _transcription.transcribe(audio_path, language="ru")
             if not transcript:
                 failed += 1
@@ -183,8 +189,6 @@ async def handle_disk_link(message: Message):
 
             # Сохраняем и отправляем
             text_path.write_text(transcript, encoding="utf-8")
-            await status_msg.edit_text(_status_text(i, len(videos), video_name, "📤 Отправляю результат…"))
-
             stem = Path(video_name).stem
             doc = FSInputFile(str(text_path), filename=f"{stem}.txt")
             await message.answer_document(doc, caption=f"📝 {video_name}")
@@ -210,11 +214,11 @@ async def handle_disk_link(message: Message):
         await asyncio.sleep(0.5)
 
     # Итог
-    await status_msg.edit_text(
+    await progress_msg.edit_text(
         f"✅ Готово!\n\n"
         f"Обработано: {processed}\n"
         f"Ошибок: {failed}\n"
-        f"Всего: {len(videos)}"
+        f"Всего: {total}"
     )
 
 
