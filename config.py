@@ -17,8 +17,8 @@ ADMIN_IDS_STR = os.getenv("ADMIN_IDS", "")
 ADMIN_IDS = [int(id.strip()) for id in ADMIN_IDS_STR.split(",") if id.strip()] if ADMIN_IDS_STR else []
 
 # Yandex OAuth credentials (для получения токена, если нужно)
-YANDEX_CLIENT_ID = os.getenv("YANDEX_CLIENT_ID", "abfde16472b543eeb696ef1123ecccab")
-YANDEX_CLIENT_SECRET = os.getenv("YANDEX_CLIENT_SECRET", "b416c596978f493890602d39c2e46da2")
+YANDEX_CLIENT_ID = os.getenv("YANDEX_CLIENT_ID", "")
+YANDEX_CLIENT_SECRET = os.getenv("YANDEX_CLIENT_SECRET", "")
 YANDEX_REDIRECT_URI = os.getenv("YANDEX_REDIRECT_URI", "https://oauth.yandex.ru/verification_code")
 
 # Yandex OAuth URLs
