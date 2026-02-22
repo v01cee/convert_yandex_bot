@@ -2,6 +2,7 @@
 Модуль для транскрибации аудио через Whisper
 """
 import re
+import warnings
 import whisper
 from pathlib import Path
 from typing import Optional
@@ -59,11 +60,13 @@ class TranscriptionService:
             return None
 
         try:
-            result = self.model.transcribe(
-                str(audio_path),
-                language=language,
-                task="transcribe",
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                result = self.model.transcribe(
+                    str(audio_path),
+                    language=language,
+                    task="transcribe",
+                )
             text = result.get("text", "").strip()
             if not text:
                 print("Транскрибация вернула пустой текст")
