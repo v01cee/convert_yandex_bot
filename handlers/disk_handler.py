@@ -233,7 +233,8 @@ async def _resolve_videos(url: str, status_msg) -> Optional[List[Dict]]:
             await status_msg.edit_text("❌ Не удалось извлечь ключ из публичной ссылки.")
             return None
 
-        public_key = match.group(1)
+        # Яндекс API принимает полный URL как public_key
+        public_key = url
         await status_msg.edit_text("🔍 Получаю информацию о ресурсе…")
         info = await _disk.get_public_resource_info(public_key)
 
